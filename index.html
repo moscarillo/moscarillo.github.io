@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en" ng-app="dwApp">
+<head></head>
+<body>
+  <style>
+    html, body, canvas {
+      padding: 0;
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      font-family: sans-serif;
+    }
+    #egg-sub-message {
+      opacity: 1;
+      transition: opacity 2s;
+    }
+    #egg-sub-message:hover {
+      opacity: 0;
+    }
+    canvas {
+      cursor: crosshair;
+      position: absolute;
+      top: 0;
+      left: 0;
+      -webkit-transform: translate3d(0, 0, 0);
+      -moz-transform: translate3d(0, 0, 0);
+      transform: translate3d(0, 0, 0);
+      -webkit-backface-visibility: hidden;
+      -webkit-perspective: 1000;
+      background: rgba(0,0,0,0);
+      z-index: 100;
+    }
+  </style>
+  <div style="width:200px;height:100px;margin:auto;margin-top:120px;">Press &lt;&nbsp;&gt;&nbsp;&lt;&nbsp;&gt;&nbsp;d&nbsp;w</div>
+  <canvas id="canvas"></canvas>
+  <div id="egg-message" style="background-color:rgba(0,0,0,0.7); position: absolute; top:0; left: 0; bottom: 0; right: 0; z-index: 20;">
+    <div id="egg-sub-message" style="line-height:2.25rem;margin:auto;margin-top:40px;background-color:#fff;width:400px;padding:16px;height:200px;border-radius: 4px;">
+      Move your cursor OR Click to rotate the effect.<br/>
+      Press <b>C</b> to toggle color.<br/>
+      Press <b>B</b> to toggle background.<br/>
+      Press <b>I</b> to show this message.<br/>
+      Press <b>return</b> to stop.<br/>
+      Have Fun!! Thanks for visiting Designing Webs, Inc
+    </div>
+  </div>
+  <script>
+
+    var fps = 60,
+        interval = 1000 / fps,
+        lastTime = (new Date()).getTime(),
+        currentTime = 0,
+        delta = 0;
+
+    var particles = [],
+        particleCount = 200,
+        particleColor = ['#FF0000', '#FF7F00', '#FFFF00', '#00FF00', '#0000FF', '#4B0082', '#9400D3'],
+        particleBW = ['#FFF','#fff','#FFF','#fff','#FFF','#fff','#fff'],
+        particleRadiusMin = 4,
+        particleRadiusMax = 10,
+        particleVerticalSpeedMin = 1,
+        particleVerticalSpeedMax = 2,
+        particleRotationSpeedMin = 0.04,
+        particleRotationSpeedMax = 0.05,    
+        initialRadius = this.canvas.width / 20,
+        centerZ = 2000,
+        eggText = "&lt;&nbsp;&gt;&nbsp;&lt;&nbsp;&gt;&nbsp;d&nbsp;w",
+        colorMode = true,
+        messageSeen = false,
+        dark = false;
+
+
+    (function() {
+      "use strict";
+      let mouseDown = false;
+      let backgroundMode = false;
+      let centerZupdate = 0;
+      let updateInterval;
+
+      // left right left right up down a b
+      let enteredEgg = [];
+      const easterEgg = [44,46,44,46,100,119];
+
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+      const egg = document.getElementById('egg');
+      const eggMessage = document.getElementById('egg-message');
+      const eggSubMessage = document.getElementById('egg-sub-message');
+
+      var posX = 0;
+      var posY = 0;
+      var posZ = 0;
+
+      function init() {
+          window.onresize();
+          window.requestAnimationFrame(render);
+          canvas.style.display = 'none';
+          eggMessage.style.display = 'none';
+      }    
+      document.onclick = function() {
+        mouseDown = !mouseDown;
+      }
+      document.onmousemove = handleMouseMove;
+
+      document.onmouseup = function() {
+        centerZupdate = 0;
+      }
+      document.onkeypress = function(e) {
+        var ev = e || event;
+        
+        //console.log('jmo ', ev.keyCode);
+        if(ev.keyCode === 99) {
+          colorMode = !colorMode;
+        }
+
+        if(ev.keyCode === 105) {
+          messageSeen = true;
+          console.log('jmo', eggSubMessage.style.opacity == 0)
+          if(eggSubMessage.style.opacity == 0){
+            eggSubMessage.style.opacity = 1;
+            setTimeout(()=>{
+              eggSubMessage.style.opacity = 0;
+            },6000);
+          }else{
+            eggSubMessage.style.opacity = 0;
+          }
+        }
+
+        if(ev.keyCode === 98) {
+          if(dark){
+            eggMessage.style.backgroundColor = 'rgba(0,0,0,0.7)';
+          }else{
+            eggMessage.style.backgroundColor = 'rgba(0,0,0,1)';
+          }
+          dark = !dark;
+        }
+
+        if(ev.keyCode === 13) {
+          enteredEgg = [];
+          messageSeen = false;
+          canvas.style.display = 'none';
+          eggMessage.style.display = 'none';
+          egg.innerHTML = eggText;
+          return;
+        }
+        enteredEgg.push(ev.keyCode);
+        
+        const validEgg = easterEgg.every((egg, idx) => egg === enteredEgg[idx]);
+        
+        if (validEgg) {
+          canvas.style.display = 'block';
+          eggMessage.style.display = 'block';
+          egg.innerHTML = "Return to reset";
+          if (!messageSeen) {
+            messageSeen = true;
+            eggSubMessage.style.opacity = 1;
+            setTimeout(()=>{
+              eggSubMessage.style.opacity = 0;
+            },6000);
+          }
+          return;
+        }else{
+          messageSeen = false;
+          canvas.style.display = 'none';
+          eggMessage.style.display = 'none';
+          egg.innerHTML = eggText;
+          return;
+        }
+      }
+
+      window.onresize = function() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;  
+      };
+       
+      class Vector3 {
+          constructor(x, y, z) {
+              this.x = x;
+              this.y = y;
+              this.z = z;
+          }
+      }
+    
+      class Particle {
+          constructor(canvas, context, position, startPosition) {
+              this.startPosition = startPosition
+              this.canvas = canvas;
+              this.context = context;
+              this.position = position;
+              this.radius = this.getRandomInt(particleRadiusMin, particleRadiusMax);
+            
+              this.scale = 0;
+              this.x3D = posX;
+              this.y3D = posY;
+              this.radius3D = 0;
+            
+              this.currAngle = 0;
+              this.currRadius = initialRadius;
+              this.rSpeed = this.getRandomInt(particleRotationSpeedMin, particleRotationSpeedMax);
+              this.vSpeed = this.getRandomInt(particleVerticalSpeedMin, particleVerticalSpeedMax);
+          }
+        
+          update() {
+              this.currRadius += this.vSpeed / 2.5;
+              this.currAngle += this.rSpeed * 2;
+            
+              if (mouseDown) {
+                this.position.y = this.startPosition.y + Math.cos(this.currAngle) * this.currRadius; //this.vSpeed;
+                this.position.x = this.startPosition.x + Math.sin(this.currAngle) * this.currRadius;
+              }else{
+                this.position.y -= this.vSpeed;
+                this.position.x = this.startPosition.x + Math.cos(this.currAngle) * this.currRadius;
+              }
+              this.position.z = centerZupdate + centerZ + Math.sin(this.currAngle) * this.currRadius;
+    
+            
+              let canvasRatio = this.canvas.width * 0.9,
+                  xOffset = (this.canvas.width / 2) + 50,
+                  yOffset = this.canvas.height / 2;
+
+              this.scale = canvasRatio / (canvasRatio + this.position.z);
+              this.radius3D = this.radius * this.scale;
+              this.x3D = xOffset + this.position.x //* this.scale - (this.radius3D / 2);
+              this.y3D = yOffset + this.position.y //* this.scale - (this.radius3D / 2);        
+          }
+          
+          draw() {
+            if(this.radius3D < 0){ return; }
+
+              this.context.save();
+
+              if (colorMode) {
+                this.context.fillStyle = particleColor[Math.floor((Math.random() * 6))];
+              } else {
+                this.context.fillStyle = particleBW[Math.floor((Math.random() * 6))];
+              }
+              this.context.strokeStyle = "#fff";
+              this.context.lineWidth   = 1;
+
+              this.context.beginPath();
+              this.context.arc(this.x3D, this.y3D, this.radius3D, 0, Math.PI * 2, true);
+              
+              this.context.fill();
+
+              this.context.restore();        
+          }
+        
+        
+          getRandomInt(min, max) {
+              return min + Math.random() * (max - min);
+          }
+        
+          isDead() {
+              return this.y3D < -this.canvas.height / 2;
+          }
+      }
+
+      function handleMouseMove(event) {
+          var eventDoc, doc, body;
+          posX = event.pageX - (canvas.width / 2) - 69,
+          posY = event.pageY - (canvas.height / 2),
+          posZ = 0;
+      }
+      
+      function createParticles() {
+          particles.push(
+              new Particle(canvas, context, new Vector3(posX,posY,0), new Vector3(posX,posY,0))
+          ); 
+      }
+      
+      function clearCanvas() {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      
+      function update() {
+          for(var i = 0; i < particles.length; i++) {
+              let p = particles[i];
+              if(i > particleCount) { // if(p.isDead()) {
+                  particles.splice(0, 1);
+              } else {
+                  p.update();
+              }
+          }
+        
+          //if(particles.length < particleCount)
+              createParticles();  
+      } 
+      
+      function render() {
+        
+        currentTime = (new Date()).getTime();
+        delta = currentTime - lastTime;
+
+        if(delta > interval) {
+
+            update();
+          
+            clearCanvas();
+    
+            for(var i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                p.draw();
+            }
+
+            lastTime = currentTime - (delta % interval);
+        }
+
+
+        requestAnimationFrame(() => {
+            render();
+        });
+      }
+      
+      
+      init();
+      
+    })();
+
+  </script>
+</body>
+</html>
