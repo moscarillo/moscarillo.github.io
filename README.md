@@ -1,3 +1,5 @@
 # moscarillo.github.io
 
-Fun cursor fx
+Javascript "Tornado" effect. 
+
+Moving mouse and tornado will follow
