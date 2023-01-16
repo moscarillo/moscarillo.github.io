@@ -93,8 +93,20 @@
       function init() {
           window.onresize();
           window.requestAnimationFrame(render);
-          canvas.style.display = 'none';
-          eggMessage.style.display = 'none';
+          // canvas.style.display = 'none';
+          // eggMessage.style.display = 'none';
+          
+          canvas.style.display = 'block';
+          eggMessage.style.display = 'block';
+          egg.innerHTML = "Return to reset";
+          
+          if (!messageSeen) {
+            messageSeen = true;
+            eggSubMessage.style.opacity = 1;
+            setTimeout(()=>{
+              eggSubMessage.style.opacity = 0;
+            },6000);
+          }
       }    
       document.onclick = function() {
         mouseDown = !mouseDown;
